@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 import httpx
 
 from engines.keyring import KeyRing
 from models import EngineStatus, SearchResult
+
+logger = logging.getLogger(__name__)
 
 
 class SearchEngine(ABC):
@@ -63,10 +66,21 @@ class SearchEngine(ABC):
         resp = await self._client.request(method, url, **kwargs)
         if resp.status_code == 429:
             self.key_ring.on_429(key)
+            retry_after = resp.headers.get("Retry-After")
+            ra_suffix = f" (Retry-After: {retry_after})" if retry_after else ""
             next_key = self.key_ring.next_key()
             if next_key and next_key != key:
+                logger.warning(
+                    f"{self.name}: HTTP 429 rate limit on key '{key[:4]}...', "
+                    f"switching to key '{next_key[:4]}...'{ra_suffix}"
+                )
                 self._inject_key(next_key, kwargs)
                 resp = await self._client.request(method, url, **kwargs)
+            else:
+                logger.warning(
+                    f"{self.name}: HTTP 429 rate limit on key '{key[:4]}...', "
+                    f"no alternate key available, retrying same key{ra_suffix}"
+                )
         return resp
 
     def _inject_key(self, key: str, kwargs: dict):

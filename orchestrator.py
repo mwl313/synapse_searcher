@@ -242,6 +242,16 @@ ENGINE_REGISTRY: dict[str, type[SearchEngine]] = {
     "google_cse": GoogleCSEEngine,
 }
 
+# 멀티키 필드 매핑 — 엔진명 → config.Settings의 멀티키(콤마 구분) 필드명
+MULTI_KEY_FIELDS: dict[str, str] = {
+    "serper": "serper_api_keys",
+    "brave": "brave_api_keys",
+    "exa": "exa_api_keys",
+    "tavily": "tavily_api_keys",
+    "daum": "daum_api_keys",
+    "naver": "naver_client_ids",
+}
+
 
 def build_engines() -> list[SearchEngine]:
     """설정 기반 엔진 인스턴스 생성"""
@@ -257,8 +267,8 @@ def build_engines() -> list[SearchEngine]:
         engine_cls = ENGINE_REGISTRY[name]
 
         # Build KeyRing from multi-key env var or single key
-        multi_key_field = name + "_keys"
-        keys_str = getattr(settings, multi_key_field, "")
+        multi_key_field = MULTI_KEY_FIELDS.get(name, "")
+        keys_str = getattr(settings, multi_key_field, "") if multi_key_field else ""
         if keys_str:
             key_list = [k.strip() for k in keys_str.split(",") if k.strip()]
             key_ring = KeyRing(key_list, state_path=f"data/keyring_{name}.json")
