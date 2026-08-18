@@ -286,10 +286,10 @@ def build_engines() -> list[SearchEngine]:
 
         # ddg doesn't need API key
         if name == "ddg":
-            engine = engine_cls(api_key="", timeout=settings.engine_timeout,
+            engine = engine_cls(api_key="", timeout=ENGINE_TIMEOUTS.get(name, settings.engine_timeout),
                                 key_ring=key_ring)
         elif name == "google_cse":
-            engine = engine_cls(api_key=key, timeout=settings.engine_timeout,
+            engine = engine_cls(api_key=key, timeout=ENGINE_TIMEOUTS.get(name, settings.engine_timeout),
                                 key_ring=key_ring)
             if settings.google_cse_cx:
                 engine.configure(settings.google_cse_cx)
@@ -297,7 +297,7 @@ def build_engines() -> list[SearchEngine]:
             if not key:
                 logger.info("Engine '%s' skipped — no API key configured", name)
                 continue
-            engine = engine_cls(api_key=key, timeout=settings.engine_timeout,
+            engine = engine_cls(api_key=key, timeout=ENGINE_TIMEOUTS.get(name, settings.engine_timeout),
                                 key_ring=key_ring)
 
         # Connect rate_limit_callback
