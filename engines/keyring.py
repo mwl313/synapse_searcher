@@ -80,9 +80,10 @@ class KeyRing:
         try:
             with open(self._state_path) as f:
                 data = json.load(f)
-            self._index = data.get("index", 0)
-            for i, (key, cd) in enumerate(data.get("slots", [])):
-                if i < len(self.slots):
-                    self.slots[i].cooldown_until = cd
+            self._index = data.get("index", 0) % len(self.slots) if self.slots else 0
+            cooldowns = {key: cd for key, cd in data.get("slots", [])}
+            for slot in self.slots:
+                if slot.key in cooldowns:
+                    slot.cooldown_until = cooldowns[slot.key]
         except Exception:
             pass
