@@ -58,30 +58,48 @@ class SearchEngine(ABC):
 
     async def _do_request(self, method: str, url: str,
                           **kwargs) -> httpx.Response:
-        """KeyRing 기반 요청 — 429 발생 시 키 자동 순환"""
+        """KeyRing 기반 요청 — 키 사용 불가(429/432/400 크레딧 소진) 시 키 자동 순환"""
         key = self.key_ring.next_key()
         if not key:
             raise RuntimeError(f"{self.name}: no available API key")
         self._inject_key(key, kwargs)
         resp = await self._client.request(method, url, **kwargs)
-        if resp.status_code == 429:
+        reason = self._rotation_reason(resp)
+        if reason:
+            # on_429는 cooldown bookkeeping 공용 진입점 — 429 외 소진 코드도 동일 처리
             self.key_ring.on_429(key)
             retry_after = resp.headers.get("Retry-After")
             ra_suffix = f" (Retry-After: {retry_after})" if retry_after else ""
             next_key = self.key_ring.next_key()
             if next_key and next_key != key:
                 logger.warning(
-                    f"{self.name}: HTTP 429 rate limit on key '{key[:4]}...', "
+                    f"{self.name}: {reason} on key '{key[:4]}...', "
                     f"switching to key '{next_key[:4]}...'{ra_suffix}"
                 )
                 self._inject_key(next_key, kwargs)
                 resp = await self._client.request(method, url, **kwargs)
             else:
                 logger.warning(
-                    f"{self.name}: HTTP 429 rate limit on key '{key[:4]}...', "
+                    f"{self.name}: {reason} on key '{key[:4]}...', "
                     f"no alternate key available, retrying same key{ra_suffix}"
                 )
         return resp
+
+    @staticmethod
+    def _rotation_reason(resp: httpx.Response) -> str | None:
+        """키 순환 트리거 판정 — 상태 코드 + 본문 단서를 요약 문자열로 반환
+
+        - 429/432: 무조건 순환
+        - 400: 본문에 크레딧/사용량 소진 단서가 있는 경우에만 순환
+        """
+        if resp.status_code in (429, 432):
+            return f"HTTP {resp.status_code}"
+        if resp.status_code == 400:
+            body = resp.text.lower()
+            for hint in ("not enough credits", "usage limit", "exceeds your plan"):
+                if hint in body:
+                    return f"HTTP 400 ({hint})"
+        return None
 
     def _inject_key(self, key: str, kwargs: dict):
         """엔진별 인증 헤더/파라미터에 키 주입"""
