@@ -27,6 +27,11 @@ from models import SearchResult, normalize_url, compute_score
 
 logger = logging.getLogger("synapse.orchestrator")
 
+# 엔진별 개별 timeout (초) — 지정되지 않은 엔진은 settings.engine_timeout 사용
+ENGINE_TIMEOUTS: dict[str, float] = {
+    "tavily": 10.0,
+}
+
 
 class CooldownManager:
     """엔진 cooldown 관리 — 429/연속 실패 시 일시적 비활성화"""
@@ -351,9 +356,10 @@ async def aggregate_search(
         engine: SearchEngine, q: str, **kw
     ) -> tuple[str, list[SearchResult] | None]:
         start = time.time()
+        timeout = ENGINE_TIMEOUTS.get(engine.name, settings.engine_timeout)
         try:
             results = await asyncio.wait_for(
-                engine.search(q, **kw), timeout=settings.engine_timeout
+                engine.search(q, **kw), timeout=timeout
             )
             elapsed = (time.time() - start) * 1000
             stats_collector.record_success(engine.name, elapsed)
@@ -362,7 +368,7 @@ async def aggregate_search(
             stats_collector.record_timeout(engine.name)
             logger.warning(
                 "Engine '%s' timed out after %ds",
-                engine.name, settings.engine_timeout,
+                engine.name, timeout,
             )
             return engine.name, None
         except Exception as e:
