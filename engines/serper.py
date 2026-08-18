@@ -32,8 +32,10 @@ class SerperEngine(SearchEngine):
             "hl": kwargs.get("language", "ko"),
         }
 
-        resp = await self._client.post(
-            f"{self.base_url}/search", json=payload
+        resp = await self._do_request(
+            "POST", f"{self.base_url}/search",
+            headers=self._default_headers(),
+            json=payload,
         )
         resp.raise_for_status()
         data = resp.json()

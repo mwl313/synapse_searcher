@@ -33,8 +33,9 @@ class TavilyEngine(SearchEngine):
             "include_raw_content": False,
         }
 
-        resp = await self._client.post(
-            f"{self.base_url}/search", json=payload
+        resp = await self._do_request(
+            "POST", f"{self.base_url}/search",
+            json=payload,
         )
         resp.raise_for_status()
         data = resp.json()
