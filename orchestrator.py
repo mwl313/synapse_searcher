@@ -23,6 +23,7 @@ from engines.naver import NaverEngine
 from engines.exa import ExaEngine
 from engines.ddg import DuckDuckGoEngine
 from engines.google_cse import GoogleCSEEngine
+from engines.firecrawl import FirecrawlEngine
 from models import SearchResult, normalize_url, compute_score
 
 logger = logging.getLogger("synapse.orchestrator")
@@ -30,6 +31,7 @@ logger = logging.getLogger("synapse.orchestrator")
 # 엔진별 개별 timeout (초) — 지정되지 않은 엔진은 settings.engine_timeout 사용
 ENGINE_TIMEOUTS: dict[str, float] = {
     "tavily": 10.0,
+    "firecrawl": 8.0,
 }
 
 
@@ -245,6 +247,7 @@ ENGINE_REGISTRY: dict[str, type[SearchEngine]] = {
     "exa": ExaEngine,
     "ddg": DuckDuckGoEngine,
     "google_cse": GoogleCSEEngine,
+    "firecrawl": FirecrawlEngine,
 }
 
 # 멀티키 필드 매핑 — 엔진명 → config.Settings의 멀티키(콤마 구분) 필드명
@@ -255,6 +258,7 @@ MULTI_KEY_FIELDS: dict[str, str] = {
     "tavily": "tavily_api_keys",
     "daum": "daum_api_keys",
     "naver": "naver_client_ids",
+    "firecrawl": "firecrawl_api_keys",
 }
 
 

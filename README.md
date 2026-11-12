@@ -1,6 +1,6 @@
 # Synapse ⚡
 
-**One search query. Six engines. The best results win.**
+**One search query. Eight engines. The best results win.**
 
 Synapse is a lightweight search aggregator server. When you search for something, it fires your query to multiple search APIs at once, picks the best results, and returns them — all in under two seconds.
 
@@ -14,11 +14,12 @@ Most search tools rely on a single API. If that API goes down, rate-limits you, 
 
 Synapse doesn't have that problem.
 
-- **Six APIs, one query** — Brave, Google (via Serper), Tavily, Daum (Kakao), Naver, and Exa. All called in parallel.
+- **Eight APIs, one query** — Brave, Google (via Serper), Tavily, Daum (Kakao), Naver, Exa, DuckDuckGo, and Firecrawl. All called in parallel.
 - **Resilient by design** — One API fails? You still get results from the others. No single point of failure.
+- **Key rotation built in** — Give an engine two or more keys and Synapse cycles them automatically when one hits a rate limit or runs out of credits.
 - **Korean search, actually great** — Naver + Daum (Kakao) are built in. Korean-language queries that stumped global APIs now return real results from Naver blogs, cafes, and Daum web.
-- **Free tier, real limits** — 3,500+/month across Brave + Serper + Tavily + Exa, plus **55,000/day** from Naver and Daum combined.
-- **Shoebox-sized** — Python + FastAPI. Six dependencies. No Docker required (but available if you want it).
+- **Free tier, real limits** — 4,000+/month across Brave + Serper + Tavily + Exa + Firecrawl, plus **55,000/day** from Naver and Daum combined. DuckDuckGo needs no key at all.
+- **Shoebox-sized** — Python + FastAPI. Eight dependencies. No Docker required (but available if you want it).
 
 ---
 
@@ -75,10 +76,12 @@ Skip any key by pressing Enter — that engine will be automatically disabled. N
 | **Serper (Google)** | 2,500/month | https://serper.dev |
 | **Tavily (AI)** | 1,000/month | https://app.tavily.com |
 | **Exa (AI Agent)** | 1,000/month | https://exa.ai |
+| **Firecrawl** | 1,000 credits/month (~500 searches) | https://firecrawl.dev |
 | **Daum (Kakao)** | **30,000/day** | https://developers.kakao.com |
 | **Naver Search** | **25,000/day** | https://developers.naver.com |
+| **DuckDuckGo** | No key needed | just add `ddg` to `SYNAPSE_ENGINES` |
 
-**Pro tip:** Brave + Serper + Daum + Naver gets you excellent coverage with Korean search being surprisingly good. Start with those.
+**Pro tip:** Brave + Serper + Daum + Naver gets you excellent coverage with Korean search being surprisingly good. Add Firecrawl when you want scraped page content alongside the links. Start with those.
 
 ---
 
@@ -89,7 +92,7 @@ Skip any key by pressing Enter — that engine will be automatically disabled. N
 | **Setup time** | 5 minutes | 30+ minutes (Docker) | **3 minutes** |
 | **Failure mode** | One API = single point of failure | Self-hosted engines break silently | **Degrades gracefully** |
 | **Korean search** | Poor on most APIs | Depends on engine config | **Naver + Daum built-in** |
-| **Free quota** | Varies | Unlimited (scraping) | **3.5K/mo + 55K/day** |
+| **Free quota** | Varies | Unlimited (scraping) | **4K/mo + 55K/day** |
 | **Resource usage** | Nothing extra | Full Docker container | **~50MB Python process** |
 
 ---
@@ -114,11 +117,12 @@ Your Tool (OpenClaw, Claude Code, etc.)
     │
     └── /search?q=... → Synapse (port 8888)
                             │
-                ┌───────┬───┼───┬───────┬───────┐
-                ▼       ▼   ▼   ▼       ▼       ▼
-            Brave  Serper  Tavily  Daum  Naver  Exa
-                │       │   │   │       │       │
-                └───────┴───┴───┴───────┴───────┘
+                    asyncio.gather (parallel)
+                            │
+      ┌────────┬────────┬────────┬────────┬────────┬───────┬──────┬──────────┐
+      ▼        ▼        ▼        ▼        ▼        ▼       ▼      ▼
+    Brave   Serper   Tavily    Daum    Naver     Exa     DDG  Firecrawl
+      └────────┴────────┴────────┴────────┴────────┴───────┴──────┘
                             │
                     Deduplicate + Score
                             │
@@ -139,22 +143,60 @@ synapse/
 ├── orchestrator.py        # Parallel execution + dedup + scoring engine
 ├── models.py              # Data models
 ├── config.py              # Environment-based config
+├── router.py              # Language-aware engine routing
 ├── setup.py               # Interactive setup wizard
 ├── engines/
-│   ├── base.py            # Abstract engine class
+│   ├── base.py            # Abstract engine class + key rotation hook
+│   ├── keyring.py         # Multi-key ring (rotation + cooldown state)
 │   ├── brave.py           # Brave Search API
 │   ├── serper.py          # Serper.dev (Google results)
 │   ├── tavily.py          # Tavily AI Search
 │   ├── daum.py            # Daum (Kakao) Search — Korean optimized
 │   ├── naver.py           # Naver Search API — Korean optimized
 │   ├── exa.py             # Exa AI Search — AI agent optimized
+│   ├── ddg.py             # DuckDuckGo (duckduckgo-search, no key)
+│   ├── firecrawl.py       # Firecrawl v2 /search — search + scrape
+│   ├── google_cse.py      # Google Programmable Search (optional)
 │   └── legacy_bing.py     # Bing Search API (retired Aug 2025)
+├── spec/
+│   ├── design-spec.md     # v2 design proposal
+│   ├── keypool-design.md  # Key pool design proposal
+│   ├── smart-pool-design.md
+│   ├── ddg-proxy-design.md
+│   └── tasks.md
 ├── tests/
 │   ├── test_queries.json  # Sample query set for testing
 │   └── test_engines.py    # Engine test runner
 └── docs/
-    └── ARCHITECTURE.md    # Detailed design doc
+    ├── ARCHITECTURE.md    # Design doc (v1 baseline + current-state notes)
+    └── ENGINES.md         # Current engine matrix, key rotation, timeouts
 ```
+
+---
+
+## Key Rotation & Timeouts
+
+Every engine can hold more than one API key. Put them in a comma-separated env var and Synapse rotates automatically:
+
+```bash
+# .env — either the single key...
+SERPER_API_KEY=key_a
+
+# ...or a ring. The ring wins when both are set.
+SERPER_API_KEYS=key_a,key_b,key_c
+```
+
+Rotation triggers on `429` and `432`, and on `400` responses whose body mentions a credit or usage limit. Firecrawl also rotates on `401/402/403` because it reports invalid keys and exhausted credits with those codes. Rotation state lives in `data/keyring_<engine>.json`, so a restart doesn't hammer a key that is already cooling down.
+
+Timeouts are layered:
+
+| Layer | Setting | Default |
+|:--|:--|:--:|
+| Per-engine base | `SYNAPSE_ENGINE_TIMEOUT_SECONDS` | 4s |
+| Per-engine override | `ENGINE_TIMEOUTS` in `orchestrator.py` | Tavily 10s, Firecrawl 8s |
+| Whole search | `SYNAPSE_SEARCH_HARD_TIMEOUT_SECONDS` | 6s (use 8s with Firecrawl) |
+
+See [docs/ENGINES.md](docs/ENGINES.md) for the full engine matrix.
 
 ---
 
@@ -171,6 +213,8 @@ curl -X POST http://localhost:8888/engines/status/dump
 ```
 
 Each engine records success rate, average latency, last error, and last success time. Stats are persisted to `data/engine_stats.json` every 60 seconds.
+
+> **Don't monitor `/health`.** It reports every configured engine as `ok` regardless of actual failures. Use `/engines/status` for real success rates and last-error data.
 
 ---
 

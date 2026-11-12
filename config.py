@@ -54,6 +54,9 @@ class Settings:
     exa_api_key: str = field(
         default_factory=lambda: os.getenv("EXA_API_KEY", "")
     )
+    firecrawl_api_key: str = field(
+        default_factory=lambda: os.getenv("FIRECRAWL_API_KEY", "")
+    )
 
     # === Engine Selection ===
     engines: str = field(
@@ -109,6 +112,9 @@ class Settings:
     daum_api_keys: str = field(
         default_factory=lambda: os.getenv("DAUM_API_KEYS", "")
     )
+    firecrawl_api_keys: str = field(
+        default_factory=lambda: os.getenv("FIRECRAWL_API_KEYS", "")
+    )
 
     # === Google CSE ===
     google_cse_api_key: str = field(
@@ -132,6 +138,7 @@ class Settings:
             "daum": self.daum_api_key,
             "naver": self.naver_client_id,  # client_id를 키로 사용
             "exa": self.exa_api_key,
+            "firecrawl": self.firecrawl_api_key,
             "google_cse": self.google_cse_api_key,
         }
 

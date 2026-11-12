@@ -2,6 +2,17 @@
 
 > **SearXNG 드롭인 대체 — 4개 검색 API를 동시에 때려서 최고의 결과를 합친다**
 
+> **현행 구현 노트 (2026-11-12)**
+>
+> 이 문서는 v1 설계(2026-07-06) 기준이며, 이후 변경으로 아래 항목이 문서와 달라졌다. 설계 의도와 이력은 그대로 보존한다.
+>
+> - **엔진 구성**: Brave, Serper, Tavily, Daum, Naver, Exa, DuckDuckGo, Firecrawl 8종 + Google CSE(선택). Bing은 Azure API 은퇴(2025-08-11)로 레지스트리에서 제거됐다. §4.5와 §6.1의 `BING_API_KEY`는 역사 기록이다.
+> - **키 순환**: `engines/keyring.py`의 KeyRing이 엔진별 다중 키를 순환한다. 429/432와 크레딧 소진성 400에서 다음 키로 넘어가고, 쿨다운은 `data/keyring_<engine>.json`에 저장된다.
+> - **타임아웃**: 엔진별 `ENGINE_TIMEOUTS`(tavily 10s, firecrawl 8s)가 추가됐다. 기본 4초로는 두 엔진이 자주 잘린다.
+> - **설정 변수**: `SYNAPSE_TIMEOUT_SECONDS`는 존재하지 않는다. `SYNAPSE_ENGINE_TIMEOUT_SECONDS`와 `SYNAPSE_SEARCH_HARD_TIMEOUT_SECONDS`를 쓴다. §6.1 예시는 갱신 전 표기다.
+>
+> 현행 엔진/쿼터/타임아웃 레퍼런스는 [ENGINES.md](ENGINES.md)를 본다.
+
 ---
 
 ## 1. 프로젝트 개요
